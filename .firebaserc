@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "databaseg0",
+    "databasegoo": "databaseg0"
+  },
+  "targets": {},
+  "etags": {}
+}

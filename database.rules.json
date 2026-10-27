@@ -1,0 +1,15 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "databasego": {
+      ".read": true,
+      ".write": true,
+      "products": {
+        "$id": {
+          ".validate": "newData.hasChildren(['id', 'nama']) && newData.child('id').val() === $id"
+        }
+      }
+    }
+  }
+}

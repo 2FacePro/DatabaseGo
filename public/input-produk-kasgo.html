@@ -350,6 +350,9 @@ function pnum(s, money){
 function persist(){
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
   catch(e){ memOnly = true; $('#storage-note').hidden = false; }
+  if (window.__kasgo && typeof window.__kasgo.onPersist === 'function') {
+    try { window.__kasgo.onPersist(S); } catch(e){}
+  }
 }
 function restore(){
   try {
@@ -819,7 +822,23 @@ $('#f-sticky').checked = S.sticky !== false;
 $('#h-untung').value = S.calc.untung; $('#h-mode').value = S.calc.mode; $('#h-bulat').value = S.calc.bulat;
 refreshLists(); renderList(); refresh();
 $('#f-nama').focus();
-window.__kasgo = { hpp: () => hppState, applyHpp, S: () => S, readForm, validate, toRows, buildWorkbook, save, pnum, fillForm };
+function applyState(data){
+  if (!data || typeof data !== 'object') return;
+  S.products = (Array.isArray(data.products) ? data.products : [])
+    .filter(p => p && typeof p === 'object')
+    .map(p => Object.assign({}, p, {
+      units: Array.isArray(p.units) ? p.units : [],
+      batches: Array.isArray(p.batches) ? p.batches : []
+    }));
+  S.known = Object.assign({ names: [], cats: [], units: [], barcodes: [], count: 0, file: '' }, data.known || {});
+  if (typeof data.sticky === 'boolean') S.sticky = data.sticky;
+  S.calc = Object.assign({ untung: '20', mode: 'markup', bulat: '100' }, data.calc || {});
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){}
+  $('#f-sticky').checked = S.sticky !== false;
+  $('#h-untung').value = S.calc.untung; $('#h-mode').value = S.calc.mode; $('#h-bulat').value = S.calc.bulat;
+  refreshLists(); renderList(); refresh();
+}
+window.__kasgo = { hpp: () => hppState, applyHpp, S: () => S, state: () => S, applyState, readForm, validate, toRows, buildWorkbook, save, pnum, fillForm, onPersist: null };
 })();
 </script>
 </body>
