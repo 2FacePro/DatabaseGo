@@ -426,10 +426,10 @@ export const useProductStore = defineStore("products", () => {
       ...products.value.flatMap((p) => [
         norm(p.satuan || ""),
         ...(p.units || []).map((u) => norm(u.name || "")),
+        ...(p.variants || []).flatMap((v) => (v.units || []).map((u) => norm(u.name || ""))),
       ]),
     ]).filter((u) => u !== "-"),
   );
-
   const allVTypes = computed(() =>
     uniq([
       ...DEFAULT_VTYPES,
