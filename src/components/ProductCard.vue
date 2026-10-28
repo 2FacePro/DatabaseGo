@@ -1,9 +1,14 @@
 <template>
-  <div class="card" :class="{ editing: isEditing, expanded }" @click="toggleExpand">
+  <div
+    class="card"
+    :class="{ editing: isEditing, expanded, draft: product.draft }"
+    @click="toggleExpand"
+  >
     <div class="card-top">
       <div class="card-info">
         <span class="card-nama">{{ product.nama }}</span>
-        <span class="chip">{{ product.kategori }}</span>
+        <span class="chip">{{ product.kategori || "—" }}</span>
+        <span v-if="product.draft" class="chip draft">Draf</span>
         <span v-if="product.hasVariants" class="chip">
           {{ product.variants?.length || 0 }} varian
         </span>
@@ -69,7 +74,7 @@
       <span v-if="product.barcode" class="barcode">
         <AppIcon name="barcode" :size="12" /> {{ product.barcode }}
       </span>
-      <span v-if="unitCount > 0" class="chip"> +{{ unitCount }} satuan </span>
+      <span v-if="unitCount > 0" class="chip">+{{ unitCount }} satuan</span>
       <span class="expand-hint">
         <AppIcon :name="expanded ? 'chevron-up' : 'chevron-down'" :size="13" />
         {{ expanded ? "Tutup detail" : "Lihat detail" }}
@@ -89,7 +94,6 @@
     </div>
 
     <div v-if="expanded" class="card-expanded">
-      <!-- Info umum -->
       <div class="exp-section">
         <div class="exp-title">Info Umum</div>
         <div class="exp-grid">
@@ -148,6 +152,10 @@
             <span class="exp-value">{{ formatQty(product.stokMin) }}</span>
           </div>
           <div class="exp-item">
+            <span class="exp-label">Status</span>
+            <span class="exp-value">{{ product.draft ? "Draf" : "Siap unduh" }}</span>
+          </div>
+          <div class="exp-item">
             <span class="exp-label">Opsi</span>
             <span class="exp-value">
               <span v-if="product.tanpaStok">Tanpa stok</span>
@@ -161,7 +169,6 @@
         </div>
       </div>
 
-      <!-- Varian -->
       <div v-if="product.hasVariants && product.variants?.length" class="exp-section">
         <div class="exp-title">Varian</div>
         <div class="table-wrap">
@@ -196,7 +203,6 @@
         </div>
       </div>
 
-      <!-- Satuan Tambahan (non-varian) -->
       <div
         v-if="!product.hasVariants && product.units?.filter((u) => u.name).length"
         class="exp-section"
@@ -224,7 +230,6 @@
         </div>
       </div>
 
-      <!-- Satuan Tambahan per Varian -->
       <div
         v-if="product.hasVariants && product.variants?.some((v) => v.units?.some((u) => u.name))"
         class="exp-section"
@@ -259,7 +264,6 @@
         </div>
       </div>
 
-      <!-- Batch -->
       <div v-if="product.batches?.length" class="exp-section">
         <div class="exp-title">Batch</div>
         <div class="table-wrap">
@@ -305,7 +309,6 @@ function toggleExpand() {
   expanded.value = !expanded.value;
 }
 
-/** Jumlah satuan tambahan: global (non-varian) atau jumlah di semua varian */
 const unitCount = computed(() => {
   if (props.product.hasVariants) {
     return (props.product.variants || []).reduce(
@@ -362,6 +365,9 @@ function variantPriceRange(product) {
 }
 .card.expanded {
   border-color: var(--brand);
+}
+.card.draft {
+  border-style: dashed;
 }
 .card-top {
   display: flex;
@@ -426,6 +432,11 @@ function variantPriceRange(product) {
   gap: 4px;
   font-size: 12px;
   color: var(--muted);
+}
+.chip.draft {
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 700;
 }
 .card-expanded {
   display: flex;

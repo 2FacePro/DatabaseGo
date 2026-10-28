@@ -4,8 +4,16 @@
       <div class="header-brand">
         <AppIcon name="product" :size="22" />
         <span class="header-title">Input Produk KasGo</span>
-        <span class="chip" title="Penanda versi kode. Jika tidak terlihat, aplikasi yang dibuka masih versi lama.">v3 · harga per varian</span>
-        <span v-if="productCount > 0" class="chip">{{ productCount }} produk · {{ rowCount }} baris</span>
+        <span
+          class="chip"
+          title="Penanda versi kode. Jika tidak terlihat, aplikasi yang dibuka masih versi lama."
+        >
+          v3 · harga per varian
+        </span>
+        <span v-if="productCount > 0" class="chip">
+          {{ productCount }} produk · {{ rowCount }} baris
+        </span>
+        <span v-if="draftCount > 0" class="chip draft">{{ draftCount }} draf</span>
         <button
           class="chip sync"
           :class="syncStatus"
@@ -31,29 +39,28 @@
         <button
           class="btn"
           type="button"
-          :title="known.file ? `Dimuat: ${known.file} (${known.count} produk)` : 'Muat file produk lama untuk validasi duplikat'"
+          :title="
+            known.file
+              ? `Dimuat: ${known.file} (${known.count} produk)`
+              : 'Muat file produk lama untuk validasi duplikat'
+          "
           @click="$emit('loadFile')"
         >
           <AppIcon name="upload" :size="16" />
-          <span class="btn-label">{{ known.file ? known.file : 'Muat Excel' }}</span>
+          <span class="btn-label">{{ known.file ? known.file : "Draf File" }}</span>
         </button>
-        <button
-          class="btn"
-          type="button"
-          :disabled="productCount === 0"
-          @click="$emit('preview')"
-        >
+        <button class="btn" type="button" :disabled="rowCount === 0" @click="$emit('preview')">
           <AppIcon name="spreadsheet" :size="16" />
           <span class="btn-label">Preview Excel</span>
         </button>
         <button
           class="btn primary"
           type="button"
-          :disabled="productCount === 0 || downloading"
+          :disabled="rowCount === 0 || downloading"
           @click="$emit('download')"
         >
           <AppIcon name="download" :size="16" />
-          <span class="btn-label">{{ downloading ? 'Mengunduh…' : 'Unduh Excel' }}</span>
+          <span class="btn-label">{{ downloading ? "Mengunduh…" : "Unduh Excel" }}</span>
         </button>
       </div>
     </div>
@@ -61,39 +68,50 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import AppIcon from '../icons/AppIcon.vue'
+import { computed } from "vue";
+import AppIcon from "../icons/AppIcon.vue";
 
 const props = defineProps({
   productCount: { type: Number, default: 0 },
   rowCount: { type: Number, default: 0 },
+  draftCount: { type: Number, default: 0 },
   known: { type: Object, default: () => ({}) },
   downloading: { type: Boolean, default: false },
-  syncStatus: { type: String, default: 'off' },
-  syncError: { type: String, default: '' },
+  syncStatus: { type: String, default: "off" },
+  syncError: { type: String, default: "" },
   pending: { type: Number, default: 0 },
   divideUnits: { type: Boolean, default: true },
-})
+});
 
-defineEmits(['loadFile', 'download', 'sync', 'toggleDivide', 'preview'])
+defineEmits(["loadFile", "download", "sync", "toggleDivide", "preview"]);
 
 const syncLabel = computed(() => {
   switch (props.syncStatus) {
-    case 'synced': return 'Tersimpan di cloud'
-    case 'syncing': return `Menyimpan (${props.pending})…`
-    case 'connecting': return 'Menyambung…'
-    case 'offline': return props.pending ? `Offline · ${props.pending} menunggu` : 'Offline'
-    case 'error': return 'Gagal sinkron'
-    default: return 'Hanya lokal'
+    case "synced":
+      return "Tersimpan di cloud";
+    case "syncing":
+      return `Menyimpan (${props.pending})…`;
+    case "connecting":
+      return "Menyambung…";
+    case "offline":
+      return props.pending ? `Offline · ${props.pending} menunggu` : "Offline";
+    case "error":
+      return "Gagal sinkron";
+    default:
+      return "Hanya lokal";
   }
-})
+});
 
 const syncTitle = computed(() => {
-  if (props.syncStatus === 'error') return `${props.syncError} (klik untuk coba lagi)`
-  if (props.syncStatus === 'off') return 'Firebase belum dikonfigurasi (.env). Data hanya disimpan di browser ini.'
-  if (props.syncStatus === 'offline') return 'Tidak ada koneksi. Perubahan dikirim otomatis saat online.'
-  return 'Status sinkron Firebase Realtime Database'
-})
+  if (props.syncStatus === "error") return `${props.syncError} (klik untuk coba lagi)`;
+  if (props.syncStatus === "off") {
+    return "Firebase belum dikonfigurasi (.env). Data hanya disimpan di browser ini.";
+  }
+  if (props.syncStatus === "offline") {
+    return "Tidak ada koneksi. Perubahan dikirim otomatis saat online.";
+  }
+  return "Status sinkron Firebase Realtime Database";
+});
 </script>
 
 <style scoped>
@@ -132,10 +150,29 @@ const syncTitle = computed(() => {
   gap: 8px;
   flex-wrap: wrap;
 }
-.sync { border: 0; cursor: pointer; font-family: inherit; }
-.sync.synced { color: var(--brand); background: var(--brand-soft); }
-.sync.error { color: var(--err); background: var(--err-bg); }
-.sync.offline, .sync.off { color: var(--warn); background: var(--warn-bg); }
+.sync {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.sync.synced {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+.sync.error {
+  color: var(--err);
+  background: var(--err-bg);
+}
+.sync.offline,
+.sync.off {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+.chip.draft {
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 700;
+}
 .divide-opt {
   display: flex;
   align-items: center;
@@ -146,6 +183,8 @@ const syncTitle = computed(() => {
   cursor: pointer;
 }
 @media (max-width: 480px) {
-  .btn-label { display: none; }
+  .btn-label {
+    display: none;
+  }
 }
 </style>

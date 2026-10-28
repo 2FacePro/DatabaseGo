@@ -4,6 +4,7 @@
       <h2>
         <AppIcon :name="isEditing ? 'edit' : isDuplicate ? 'duplicate' : 'add'" :size="18" />
         {{ isEditing ? "Edit Produk" : isDuplicate ? "Duplikat Produk" : "Produk Baru" }}
+        <span v-if="form.draft" class="chip draft-badge">Draf</span>
       </h2>
       <button v-if="isEditing || isDuplicate" class="btn quiet" type="button" @click="handleCancel">
         <AppIcon name="cancel" :size="14" />
@@ -230,7 +231,18 @@
         @click="handleSubmit"
       >
         <AppIcon name="save" :size="16" />
-        {{ isEditing ? "Simpan Perubahan" : "Tambah Produk" }}
+        {{
+          isEditing ? (form.draft ? "Simpan sebagai Produk" : "Simpan Perubahan") : "Tambah Produk"
+        }}
+      </button>
+      <button
+        class="btn"
+        type="button"
+        title="Simpan tanpa validasi lengkap. Draf tidak ikut unduh Excel."
+        @click="handleSaveDraft"
+      >
+        <AppIcon name="save" :size="14" />
+        {{ isEditing && form.draft ? "Update Draf" : "Simpan Draf" }}
       </button>
       <button v-if="!isEditing" class="btn quiet" type="button" @click="handleClear">
         <AppIcon name="clear" :size="14" />
@@ -286,6 +298,7 @@ const {
   submitAttempted,
   visibleMessages,
   hasErrors,
+  canSaveDraft,
   hpp,
   clearForm,
   fillForm,
@@ -337,27 +350,47 @@ function onVariantToggle() {
   }
 }
 
-function handleSubmit() {
-  submitAttempted.value = true;
-  if (hasErrors.value) return;
-  const p = buildProductObject();
+function persist(asDraft) {
+  const p = buildProductObject({ asDraft });
   const wasEditing = isEditing.value;
   if (wasEditing) {
     if (store.update(form.id, p)) {
-      emit("toast", `Diperbarui: ${p.nama}`);
+      emit("toast", asDraft ? `Draf disimpan: ${p.nama}` : `Diperbarui: ${p.nama}`);
     } else {
       store.add(p);
-      emit("toast", `Produk asli sudah terhapus, disimpan sebagai baru: ${p.nama}`);
+      emit(
+        "toast",
+        asDraft
+          ? `Draf disimpan sebagai baru: ${p.nama}`
+          : `Produk asli sudah terhapus, disimpan sebagai baru: ${p.nama}`,
+      );
     }
   } else {
     store.add(p);
-    emit("toast", `Ditambahkan: ${p.nama}`);
+    emit("toast", asDraft ? `Draf ditambahkan: ${p.nama}` : `Ditambahkan: ${p.nama}`);
   }
   emit("saved");
   clearForm(!wasEditing);
   nextTick(() => namaRef.value?.focus());
 }
 
+function handleSubmit() {
+  submitAttempted.value = true;
+  if (hasErrors.value) {
+    emit("toast", "Perbaiki error merah dulu sebelum menyimpan");
+    return;
+  }
+  persist(false);
+}
+
+function handleSaveDraft() {
+  if (!canSaveDraft.value) {
+    submitAttempted.value = true;
+    emit("toast", "Isi nama produk dulu untuk menyimpan draf");
+    return;
+  }
+  persist(true);
+}
 function handleCancel() {
   clearForm();
   emit("cancel");
@@ -410,6 +443,12 @@ defineExpose({ startEdit, startDuplicate, cancelIfEditing });
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.draft-badge {
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-weight: 700;
+  font-size: 12px;
 }
 .form-grid {
   display: grid;
@@ -514,6 +553,7 @@ defineExpose({ startEdit, startDuplicate, cancelIfEditing });
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 @media (max-width: 1100px) {
   .form-grid {

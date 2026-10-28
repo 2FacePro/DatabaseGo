@@ -30,7 +30,7 @@ function normalizeKnown(k) {
   return out;
 }
 
-/** Lengkapi field yang hilang (data lama / data dari RTDB) */
+/** Lengkapi field yang hilang (data lama / data dari RTDB / impor Excel) */
 function migrateProduct(p, fallbackCreated = 0) {
   const createdAt = Number(p.createdAt) || fallbackCreated;
 
@@ -77,6 +77,7 @@ function migrateProduct(p, fallbackCreated = 0) {
     hargaBeli: p.hargaBeli ?? null,
     stok: p.stok ?? null,
     stokMin: p.stokMin ?? null,
+    draft: !!p.draft,
     variants,
     units: p.hasVariants ? [] : toArr(p.units),
     batches: toArr(p.batches),
@@ -103,8 +104,9 @@ function uniq(list) {
 
 function friendlyError(e) {
   const raw = String(e?.code || e?.message || e || "");
-  if (/permission/i.test(raw))
+  if (/permission/i.test(raw)) {
     return "Akses ditolak oleh Rules Realtime Database. Periksa tab Rules di Firebase Console.";
+  }
   if (/network|unavailable|disconnect/i.test(raw)) return "Tidak ada koneksi ke Firebase.";
   return "Gagal sinkron: " + (e?.message || raw);
 }
@@ -132,12 +134,9 @@ export const useProductStore = defineStore("products", () => {
   const known = ref(normalizeKnown(saved?.known));
   const sticky = ref(saved?.sticky !== false);
   const calc = ref({ untung: "20", mode: "markup", bulat: "100", ...(saved?.calc || {}) });
-  // Opsi ekspor Excel. divideVariantUnits = workaround bug KasGo (harga satuan varian dibagi isi)
   const exportOpts = ref({ divideVariantUnits: true, ...(saved?.exportOpts || {}) });
   const storageOk = ref(true);
 
-  // Antrian sinkron: id produk yang belum terkirim / belum terhapus di cloud.
-  // Data lama (tanpa antrian) dianggap belum terkirim semua, supaya tidak hilang saat sinkron pertama.
   const dirty = ref(
     new Set(Array.isArray(saved?.dirty) ? saved.dirty : products.value.map((p) => p.id)),
   );
@@ -150,7 +149,7 @@ export const useProductStore = defineStore("products", () => {
     storageOk.value = false;
   }
 
-  // ---------- localStorage (cache lokal / offline) ----------
+  // ---------- localStorage ----------
   let saveTimer = null;
   function persistNow() {
     clearTimeout(saveTimer);
@@ -184,7 +183,6 @@ export const useProductStore = defineStore("products", () => {
   scheduleSave();
 
   // ---------- Sinkron Firebase RTDB ----------
-  // Struktur: databasego/products/{id}  dan  databasego/known
   const connected = ref(false);
   const everConnected = ref(false);
   const firstSnapshot = ref(false);
@@ -215,7 +213,6 @@ export const useProductStore = defineStore("products", () => {
     flushTimer = setTimeout(flush, delay);
   }
 
-  /** Kirim semua perubahan tertunda dalam satu update atomik */
   async function flush() {
     if (!db || !connected.value || !firstSnapshot.value) return;
     if (flushing) {
@@ -248,7 +245,6 @@ export const useProductStore = defineStore("products", () => {
       const now = new Map(products.value.map((p) => [p.id, p]));
       for (const [id, ver] of sentDirty) {
         const p = now.get(id);
-        // jika produk diedit lagi saat pengiriman, biarkan tetap antri
         if (!p || p.updatedAt === ver) dirty.value.delete(id);
       }
       for (const id of sentRemoved) removed.value.delete(id);
@@ -265,7 +261,6 @@ export const useProductStore = defineStore("products", () => {
     }
   }
 
-  /** Data lama dari versi sebelumnya (array / kunci angka) diubah ke bentuk objek per-id */
   function migrateCloud(entries) {
     if (!entries.length) {
       firstSnapshot.value = true;
@@ -295,7 +290,6 @@ export const useProductStore = defineStore("products", () => {
       const m = migrateProduct(p);
       if (!removed.value.has(m.id)) next.set(m.id, m);
     }
-    // perubahan lokal yang belum terkirim menang atas versi cloud
     for (const p of products.value) if (dirty.value.has(p.id)) next.set(p.id, p);
 
     const list = sortProducts([...next.values()]);
@@ -310,8 +304,9 @@ export const useProductStore = defineStore("products", () => {
   function onKnown(snap) {
     const val = snap.val();
     if (!val) {
-      if (known.value.count > 0)
+      if (known.value.count > 0) {
         dbSet(dbRef(db, `${DATA_PATH}/known`), clean(known.value)).catch(onErr);
+      }
       return;
     }
     const k = normalizeKnown(val);
@@ -400,6 +395,44 @@ export const useProductStore = defineStore("products", () => {
     queueFlush();
   }
 
+  /**
+   * Impor daftar produk sebagai draf.
+   * Nama yang sudah ada di app dilewati (tidak dobel).
+   * @returns {{ added: number, skipped: number }}
+   */
+  function importAsDrafts(list) {
+    if (!Array.isArray(list) || !list.length) return { added: 0, skipped: 0 };
+    const existing = new Set(products.value.map((p) => key(p.nama || "")));
+    let added = 0;
+    let skipped = 0;
+    const now = Date.now();
+
+    // reverse + unshift: baris atas file muncul di atas daftar
+    for (const raw of [...list].reverse()) {
+      const k = key(raw.nama || "");
+      if (!k) {
+        skipped++;
+        continue;
+      }
+      if (existing.has(k)) {
+        skipped++;
+        continue;
+      }
+      existing.add(k);
+      const item = migrateProduct({
+        ...raw,
+        draft: true,
+        id: genId(),
+        createdAt: now + added,
+        updatedAt: now + added,
+      });
+      products.value.unshift(item);
+      markDirty(item.id);
+      added++;
+    }
+    return { added, skipped };
+  }
+
   function setKnown(data) {
     known.value = normalizeKnown(data);
     scheduleSave();
@@ -416,6 +449,10 @@ export const useProductStore = defineStore("products", () => {
   }
 
   // ---------- Turunan ----------
+  /** Produk non-draf — untuk unduh / preview Excel */
+  const readyProducts = computed(() => products.value.filter((p) => !p.draft));
+  const draftCount = computed(() => products.value.filter((p) => p.draft).length);
+
   const allCats = computed(() =>
     uniq([...(known.value.cats || []), ...products.value.map((p) => norm(p.kategori || ""))]),
   );
@@ -430,6 +467,7 @@ export const useProductStore = defineStore("products", () => {
       ]),
     ]).filter((u) => u !== "-"),
   );
+
   const allVTypes = computed(() =>
     uniq([
       ...DEFAULT_VTYPES,
@@ -439,7 +477,7 @@ export const useProductStore = defineStore("products", () => {
   );
 
   const rowCount = computed(() =>
-    products.value.reduce((sum, p) => sum + Math.max(1, toRows(p).length), 0),
+    readyProducts.value.reduce((sum, p) => sum + Math.max(1, toRows(p).length), 0),
   );
 
   return {
@@ -452,6 +490,8 @@ export const useProductStore = defineStore("products", () => {
     syncStatus,
     syncError,
     pendingCount,
+    readyProducts,
+    draftCount,
     startSync,
     stopSync,
     syncNow,
@@ -459,6 +499,7 @@ export const useProductStore = defineStore("products", () => {
     update,
     remove,
     clear,
+    importAsDrafts,
     setKnown,
     setCalc,
     setSticky,

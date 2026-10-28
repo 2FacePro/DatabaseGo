@@ -40,6 +40,7 @@ export function useProductForm() {
     variants: [],
     units: blankUnits(),
     batches: [],
+    draft: false,
   });
 
   const isEditing = computed(() => !!form.id);
@@ -52,6 +53,7 @@ export function useProductForm() {
     hargaBeli: pnum(form.hargaBeli, true),
     stok: pnum(form.stok, false),
     stokMin: pnum(form.stokMin, false),
+    draft: !!form.draft,
     variants: form.variants.map((v) => ({
       ...v,
       jual: pnum(v.jual, true),
@@ -77,10 +79,12 @@ export function useProductForm() {
     })),
   }));
 
+  // PENTING: kirim SEMUA produk (termasuk yang sedang diedit).
+  // validate memakai editId untuk mengabaikan diri sendiri.
+  // Jangan filter di sini — kalau di-filter, cek known.names salah saat edit draf impor.
   const validationMessages = computed(() => {
-    const others = store.products.filter((p) => p.id !== form.id);
     return validate(parsedProduct.value, {
-      products: others,
+      products: store.products,
       known: store.known,
       editId: form.id,
     });
@@ -91,6 +95,8 @@ export function useProductForm() {
   });
 
   const hasErrors = computed(() => validationMessages.value.some((m) => m.level === "error"));
+
+  const canSaveDraft = computed(() => !!norm(form.nama));
 
   const hpp = reactive({
     hargaKemasan: "",
@@ -121,6 +127,7 @@ export function useProductForm() {
     form.variants = [];
     form.units = blankUnits();
     form.batches = [];
+    form.draft = false;
     isDuplicate.value = false;
     submitAttempted.value = false;
   }
@@ -140,6 +147,7 @@ export function useProductForm() {
     form.hasVariants = !!p.hasVariants;
     form.vt1 = norm(p.vt1 || "");
     form.vt2 = norm(p.vt2 || "");
+    form.draft = !!p.draft;
     form.variants = (p.variants || []).map((v) => ({
       v1: norm(v.v1 || ""),
       v2: norm(v.v2 || ""),
@@ -181,6 +189,7 @@ export function useProductForm() {
     form.id = null;
     form.nama = norm(p.nama || "") + " ";
     form.barcode = "";
+    form.draft = false;
     form.variants = form.variants.map((v) => ({ ...v, barcode: "" }));
     isDuplicate.value = true;
   }
@@ -191,7 +200,8 @@ export function useProductForm() {
     return found || val;
   }
 
-  function buildProductObject() {
+  function buildProductObject(opts = {}) {
+    const asDraft = !!opts.asDraft;
     const nama = norm(form.nama);
     const kategori = normalizeWithKnown(norm(form.kategori), store.allCats);
     const satuan = normalizeWithKnown(norm(form.satuan), store.allUnits);
@@ -212,6 +222,7 @@ export function useProductForm() {
       hargaBeli: pnum(form.hargaBeli, true),
       stok: pnum(form.stok, false),
       stokMin: pnum(form.stokMin, false) ?? 5,
+      draft: asDraft,
       variants: form.hasVariants
         ? form.variants
             .filter(
@@ -271,6 +282,7 @@ export function useProductForm() {
     validationMessages,
     visibleMessages,
     hasErrors,
+    canSaveDraft,
     hpp,
     clearForm,
     fillForm,

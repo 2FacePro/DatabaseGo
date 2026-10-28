@@ -96,19 +96,36 @@ export function validate(p, ctx = {}) {
     }
   }
 
+  // --- nama unik ---
   const k = key(p.nama || "");
   if (k) {
     const d = products.find((x) => x.id !== editId && key(norm(x.nama || "")) === k);
-    if (d) E(`Nama "${d.nama}" sudah ada di daftar ini`);
-    else if ((known.names || []).includes(k))
-      E("Nama ini sudah ada di file produk lama yang dimuat");
+    if (d) {
+      E(`Nama "${d.nama}" sudah ada di daftar ini`);
+    } else if ((known.names || []).includes(k)) {
+      // Saat edit: izinkan jika nama sama dengan nama asli produk ini
+      // (draf hasil impor Excel — nama ada di known + di daftar lokal)
+      const self = products.find((x) => x.id === editId);
+      const selfKey = self ? key(norm(self.nama || "")) : null;
+      if (selfKey !== k) {
+        E("Nama ini sudah ada di file produk lama yang dimuat");
+      }
+    }
   }
 
+  // --- barcode produk non-varian ---
   if (p.barcode && !p.hasVariants) {
     const usedBc = collectBarcodes(products, editId);
     const knownBc = known.barcodes || [];
-    if (usedBc.has(norm(p.barcode)) || knownBc.includes(norm(p.barcode))) {
+    const bc = norm(p.barcode);
+    if (usedBc.has(bc)) {
       E("Barcode ini sudah dipakai produk lain");
+    } else if (knownBc.includes(bc)) {
+      const self = products.find((x) => x.id === editId);
+      const selfBc = self && !self.hasVariants ? norm(self.barcode || "") : "";
+      if (selfBc !== bc) {
+        E("Barcode ini sudah ada di file produk lama yang dimuat");
+      }
     }
   }
 
@@ -157,8 +174,12 @@ export function validate(p, ctx = {}) {
 
       if (v.barcode) {
         const vbc = norm(String(v.barcode));
-        if (seenB.has(vbc) || usedBc.has(vbc) || knownBc.includes(vbc)) {
+        const self = products.find((x) => x.id === editId);
+        const selfHad = (self?.variants || []).some((sv) => norm(String(sv.barcode || "")) === vbc);
+        if (seenB.has(vbc) || usedBc.has(vbc)) {
           E(t + ": barcode sudah dipakai");
+        } else if (knownBc.includes(vbc) && !selfHad) {
+          E(t + ": barcode sudah ada di file produk lama yang dimuat");
         }
         seenB.add(vbc);
       }
