@@ -10,6 +10,7 @@
     :divide-units="store.exportOpts.divideVariantUnits"
     @load-file="handleLoadFile"
     @download="handleDownload"
+    @preview="showPreview = true"
     @sync="store.syncNow()"
     @toggle-divide="v => (store.exportOpts.divideVariantUnits = v)"
   />
@@ -34,6 +35,8 @@
     />
   </main>
 
+  <ExcelPreview v-model="showPreview" />
+
   <AppToast />
 
   <input
@@ -54,8 +57,9 @@ import AppHeader from './components/AppHeader.vue'
 import ProductForm from './components/ProductForm.vue'
 import ProductList from './components/ProductList.vue'
 import AppToast from './components/AppToast.vue'
+import ExcelPreview from './components/ExcelPreview.vue'
 import { importFile } from './lib/importFile.js'
-import { buildWorkbook } from './lib/rows.js'
+import { buildWorkbook, countDivided } from './lib/rows.js'
 import XLSX from 'xlsx/dist/xlsx.mini.min.js'
 
 const store = useProductStore()
@@ -64,6 +68,7 @@ const formRef = ref(null)
 const productListRef = ref(null)
 const fileInput = ref(null)
 const downloading = ref(false)
+const showPreview = ref(false)
 
 onMounted(() => store.startSync())
 onBeforeUnmount(() => store.stopSync())
@@ -114,7 +119,8 @@ async function handleDownload() {
     const pad = n => String(n).padStart(2, '0')
     const fname = `produk-import-${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}.xlsx`
     XLSX.writeFile(wb, fname)
-    toast(`Diunduh: ${fname}`)
+    const nDiv = countDivided(store.products, store.exportOpts)
+    toast(`Diunduh: ${fname} · ${nDiv} harga satuan varian dibagi isi`)
   } catch (err) {
     toast(err.message || 'Gagal membuat file Excel')
   } finally {

@@ -4,6 +4,7 @@
       <div class="header-brand">
         <AppIcon name="product" :size="22" />
         <span class="header-title">Input Produk KasGo</span>
+        <span class="chip" title="Penanda versi kode. Jika tidak terlihat, aplikasi yang dibuka masih versi lama.">v3 · harga per varian</span>
         <span v-if="productCount > 0" class="chip">{{ productCount }} produk · {{ rowCount }} baris</span>
         <button
           class="chip sync"
@@ -37,6 +38,15 @@
           <span class="btn-label">{{ known.file ? known.file : 'Muat Excel' }}</span>
         </button>
         <button
+          class="btn"
+          type="button"
+          :disabled="productCount === 0"
+          @click="$emit('preview')"
+        >
+          <AppIcon name="spreadsheet" :size="16" />
+          <span class="btn-label">Preview Excel</span>
+        </button>
+        <button
           class="btn primary"
           type="button"
           :disabled="productCount === 0 || downloading"
@@ -65,7 +75,7 @@ const props = defineProps({
   divideUnits: { type: Boolean, default: true },
 })
 
-defineEmits(['loadFile', 'download', 'sync', 'toggleDivide'])
+defineEmits(['loadFile', 'download', 'sync', 'toggleDivide', 'preview'])
 
 const syncLabel = computed(() => {
   switch (props.syncStatus) {
